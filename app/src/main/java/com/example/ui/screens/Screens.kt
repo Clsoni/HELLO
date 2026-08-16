@@ -36,7 +36,7 @@ fun AppNavigation(viewModel: MarketViewModel) {
     val showPopup by viewModel.showPopup.collectAsStateWithLifecycle()
     val popupText by viewModel.popupText.collectAsStateWithLifecycle()
 
-    if (showPopup) {
+    if (showPopup && popupText.isNotBlank()) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissPopup() },
             title = { Text("Welcome", color = SwastikGold) },

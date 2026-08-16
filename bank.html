@@ -16,12 +16,40 @@
         <a href="about.html"><span class="icon material-icons">info</span>About</a>
         <a href="admin.html"><span class="icon material-icons">admin_panel_settings</span>Admin</a>
     </div>
-    <div class="admin-card">
-        <h3>Bank Information</h3>
-        <p><strong>Bank Name:</strong> State Bank of India</p>
-        <p><strong>Account Name:</strong> Swastik Gold</p>
-        <p><strong>Account No:</strong> XXXXXXXX1234</p>
-        <p><strong>IFSC Code:</strong> SBIN000XXXX</p>
+
+    <div id="bank-container">
+        <div class="admin-card">Loading banks...</div>
     </div>
+
+    <script>
+        async function loadBanks() {
+            try {
+                let res = await fetch('api/get_config.php');
+                if (res.ok) {
+                    let config = await res.json();
+                    let banks = config.banks || [];
+                    let html = '';
+                    if (banks.length === 0) {
+                        html = '<div class="admin-card"><p>No bank details available.</p></div>';
+                    } else {
+                        banks.forEach(b => {
+                            html += `
+                                <div class="admin-card">
+                                    <h3>${b.name}</h3>
+                                    <p><strong>Account No:</strong> ${b.account}</p>
+                                    <p><strong>IFSC Code:</strong> ${b.ifsc}</p>
+                                    <p><strong>Branch:</strong> ${b.branch}</p>
+                                </div>
+                            `;
+                        });
+                    }
+                    document.getElementById('bank-container').innerHTML = html;
+                }
+            } catch (e) {
+                document.getElementById('bank-container').innerHTML = '<div class="admin-card"><p>Failed to load banks.</p></div>';
+            }
+        }
+        window.onload = loadBanks;
+    </script>
 </body>
 </html>

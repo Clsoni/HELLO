@@ -241,13 +241,13 @@ fun ProductCard(product: Product, alias: String? = null) {
                 }
             }
             ColoredPriceBox(
-                price = product.buy,
+                price = if (product.buy != null) product.buy + product.buyPremium else null,
                 modifier = Modifier.weight(1f),
                 isHidden = product.isBuyHidden,
                 initialColor = buyColor
             )
             ColoredPriceBox(
-                price = product.sell,
+                price = if (product.sell != null) product.sell + product.sellPremium else null,
                 modifier = Modifier.weight(1f),
                 isHidden = product.isSellHidden,
                 initialColor = sellColor

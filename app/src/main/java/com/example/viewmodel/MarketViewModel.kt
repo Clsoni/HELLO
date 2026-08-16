@@ -10,51 +10,48 @@ import com.example.model.Product
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import kotlin.random.Random
 
 class MarketViewModel : ViewModel() {
 
     private val httpClient = OkHttpClient()
 
-    private val _silverSpot = MutableStateFlow(61.53)
-    val silverSpot: StateFlow<Double> = _silverSpot.asStateFlow()
-
-    private val _goldSpot = MutableStateFlow(4254.30)
-    val goldSpot: StateFlow<Double> = _goldSpot.asStateFlow()
-
-    private val _usdInr = MutableStateFlow(95.210)
-    val usdInr: StateFlow<Double> = _usdInr.asStateFlow()
-
     private val _products = MutableStateFlow<List<Product>>(emptyList())
-    val products: StateFlow<List<Product>> = _products.asStateFlow()
+    val products = _products.asStateFlow()
 
     private val _marketQuotes = MutableStateFlow<List<MarketQuote>>(emptyList())
-    val marketQuotes: StateFlow<List<MarketQuote>> = _marketQuotes.asStateFlow()
+    val marketQuotes = _marketQuotes.asStateFlow()
 
-    private val _messages = MutableStateFlow<List<BroadcastMessage>>(emptyList())
-    val messages: StateFlow<List<BroadcastMessage>> = _messages.asStateFlow()
+    private val _silverSpot = MutableStateFlow(0.0)
+    val silverSpot = _silverSpot.asStateFlow()
 
-    private val _bankAccounts = MutableStateFlow<List<BankAccount>>(emptyList())
-    val bankAccounts: StateFlow<List<BankAccount>> = _bankAccounts.asStateFlow()
+    private val _goldSpot = MutableStateFlow(0.0)
+    val goldSpot = _goldSpot.asStateFlow()
 
-    private val _marqueeText = MutableStateFlow("नमस्कार, SWASTIK GOLD में आपका स्वागत है। ❖ यह भाव रेफ्रेन्स के तौर पर दिए जा रहे हैं ❖")
+    private val _usdInr = MutableStateFlow(0.0)
+    val usdInr = _usdInr.asStateFlow()
+
+    private val _marqueeText = MutableStateFlow("Welcome to Swastik Gold")
     val marqueeText = _marqueeText.asStateFlow()
 
-    private val _popupText = MutableStateFlow("SWASTIK GOLD में आपका स्वागत है। हमारी बुकिंग सेवा सुबह 10:00 बजे शुरू होती है और रात को 8:00 बजे बंद होती है।")
+    private val _popupText = MutableStateFlow("")
     val popupText = _popupText.asStateFlow()
-    
-    private val _showPopup = MutableStateFlow(false) // Disable popup for UI matching
+
+    private val _messages = MutableStateFlow<List<BroadcastMessage>>(emptyList())
+    val messages = _messages.asStateFlow()
+
+    private val _bankAccounts = MutableStateFlow<List<BankAccount>>(emptyList())
+    val bankAccounts = _bankAccounts.asStateFlow()
+
+    private val _showPopup = MutableStateFlow(true) // Used by Compose to show/hide the popup for UI matching
     val showPopup = _showPopup.asStateFlow()
 
     private val _isFrozen = MutableStateFlow(false)
@@ -79,29 +76,80 @@ class MarketViewModel : ViewModel() {
         _messages.value = listOf(
             BroadcastMessage("1", "OFFICIAL BULLETIN", "25 Jun 2026, 02:24 am", "Swastik Gold में मेसेज सेवाएं भी उपलब्ध है जिसके जरिए आप Swastik Gold से हमेशा जुड़े रहेंगे धन्यवाद")
         )
-        _bankAccounts.value = listOf(
-            BankAccount("HDFC Bank Ltd", "50200084712035", "HDFC0000241", "gandhi chowk, Jalore", "Bullion Current Account"),
-            BankAccount("State Bank of India", "38147295103", "SBIN0001034", "Jalore", "Current Account")
-        )
+
+        _bankAccounts.value = emptyList()
     }
 
     private fun startConfigSync() {
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
                 try {
-                    // Sync aliases from website config
+                    // Sync full config from website config
                     val request = Request.Builder()
-                        .url("https://swastikgold.net/api/get_config.php")
+                        .url("https://mygoldking.net/api/get_config.php")
                         .build()
                     val response = httpClient.newCall(request).execute()
                     val bodyString = response.body?.string()
+                    
                     if (response.isSuccessful && !bodyString.isNullOrBlank()) {
-                        val json = org.json.JSONObject(bodyString)
-                        if (json.has("aliases")) {
-                            val aliasesObj = json.getJSONObject("aliases")
+                        val json = JSONObject(bodyString)
+                        
+                        // Parse Marquee
+                        if (json.has("marquee")) {
+                            _marqueeText.value = json.getString("marquee")
+                        }
+                        
+                        // Parse Popup
+                        if (json.has("popup")) {
+                            _popupText.value = json.getString("popup")
+                            if (_popupText.value.isNotBlank() && _showPopup.value == false) {
+                                // optional: could re-trigger popup if changed, but lets just update text
+                            }
+                        }
+                        
+                        // Parse Banks
+                        if (json.has("banks")) {
+                            val banksArr = json.getJSONArray("banks")
+                            val newBanks = mutableListOf<BankAccount>()
+                            for (i in 0 until banksArr.length()) {
+                                val b = banksArr.getJSONObject(i)
+                                newBanks.add(
+                                    BankAccount(
+                                        b.optString("name"),
+                                        b.optString("account"),
+                                        b.optString("ifsc"),
+                                        b.optString("branch"),
+                                        "Bank Account"
+                                    )
+                                )
+                            }
+                            _bankAccounts.value = newBanks
+                        }
+                        
+                        // Parse Products Overrides (Alias, Premium, Visibility)
+                        if (json.has("products")) {
+                            val prodsObj = json.getJSONObject("products")
                             val newAliases = mutableMapOf<String, String>()
-                            aliasesObj.keys().forEach { key ->
-                                newAliases[key] = aliasesObj.getString(key)
+                            
+                            // We will update the _products list directly if the product exists
+                            _products.update { currentList ->
+                                currentList.map { prod ->
+                                    if (prodsObj.has(prod.id)) { // ID here is the original name from API
+                                        val pconf = prodsObj.getJSONObject(prod.id)
+                                        val alias = pconf.optString("alias", "")
+                                        if (alias.isNotBlank()) newAliases[prod.id] = alias
+                                        
+                                        prod.copy(
+                                            isRowHidden = pconf.optBoolean("hideRow", false),
+                                            buyPremium = pconf.optDouble("buyPrem", 0.0),
+                                            isBuyHidden = pconf.optBoolean("hideBuy", false),
+                                            sellPremium = pconf.optDouble("sellPrem", 0.0),
+                                            isSellHidden = pconf.optBoolean("hideSell", false)
+                                        )
+                                    } else {
+                                        prod
+                                    }
+                                }
                             }
                             _aliases.value = newAliases
                         }
@@ -125,6 +173,7 @@ class MarketViewModel : ViewModel() {
                         
                         val response = httpClient.newCall(request).execute()
                         val bodyString = response.body?.string()
+                        
                         if (response.isSuccessful && !bodyString.isNullOrBlank()) {
                             parseApiResponse(bodyString)
                         }
@@ -148,8 +197,7 @@ class MarketViewModel : ViewModel() {
             val parts = line.split("\t")
             if (parts.size >= 7) {
                 val originalName = parts[2].trim()
-                // Do not apply alias here, keep original name for mapping, but we can expose a getter or apply it dynamically in the UI
-                val name = originalName
+                val name = originalName // We use original name as ID
 
                 val buyStr = parts[3].trim()
                 val sellStr = parts[4].trim()
@@ -166,7 +214,7 @@ class MarketViewModel : ViewModel() {
                     name.equals("GOLD", ignoreCase = true) -> buy?.let { _goldSpot.value = it }
                     name.equals("USDINR", ignoreCase = true) -> buy?.let { _usdInr.value = it }
                     name.contains("FUTURE", ignoreCase = true) -> {
-                        val existingIndex = newQuotes.indexOfFirst { it.symbol.equals(name, ignoreCase = true) }
+                        val existingIndex = newQuotes.indexOfFirst { it.id.equals(name, ignoreCase = true) }
                         if (existingIndex >= 0) {
                             val existing = newQuotes[existingIndex]
                             newQuotes[existingIndex] = existing.copy(
@@ -176,11 +224,12 @@ class MarketViewModel : ViewModel() {
                                 low = minOfNullable(existing.low, buy, sell, low)
                             )
                         } else {
+                            // Using symbol as both ID and symbol for futures
                             newQuotes.add(MarketQuote(name, name, buy ?: 0.0, sell ?: 0.0, high, low))
                         }
                     }
                     else -> {
-                        val existingIndex = newProducts.indexOfFirst { it.name.equals(name, ignoreCase = true) }
+                        val existingIndex = newProducts.indexOfFirst { it.id.equals(name, ignoreCase = true) }
                         if (existingIndex >= 0) {
                             val existing = newProducts[existingIndex]
                             newProducts[existingIndex] = existing.copy(
@@ -192,6 +241,7 @@ class MarketViewModel : ViewModel() {
                                 sellLow = minOfNullable(existing.sellLow, sell, low)
                             )
                         } else {
+                            // First time we see this product, id=originalName, name=originalName
                             newProducts.add(Product(name, name, buy, sell, high, low))
                         }
                     }
@@ -213,97 +263,6 @@ class MarketViewModel : ViewModel() {
 
     fun toggleHideSpot() {
         _isSpotHidden.value = !_isSpotHidden.value
-    }
-
-    fun updateMarquee(text: String) {
-        _marqueeText.value = text
-    }
-
-    fun updatePopup(text: String) {
-        _popupText.value = text
-    }
-
-    fun updateAlias(originalName: String, newName: String) {
-        val currentAliases = _aliases.value.toMutableMap()
-        if (newName.isBlank()) {
-            currentAliases.remove(originalName)
-        } else {
-            currentAliases[originalName] = newName
-        }
-        _aliases.value = currentAliases
-
-        // Save to backend
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val json = JSONObject()
-                val aliasObj = JSONObject()
-                currentAliases.forEach { (k, v) -> aliasObj.put(k, v) }
-                json.put("aliases", aliasObj)
-                
-                val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-                val request = Request.Builder()
-                    .url("https://swastikgold.net/api/save_config.php")
-                    .post(body)
-                    .build()
-                httpClient.newCall(request).execute()
-            } catch (e: Exception) {
-                Log.e("MarketViewModel", "Failed to save config", e)
-            }
-        }
-    }
-
-    fun updateProductPremium(id: String, buyPremium: Double, sellPremium: Double) {
-        _products.update { current ->
-            current.map { if (it.id == id) it.copy(buyPremium = buyPremium, sellPremium = sellPremium) else it }
-        }
-    }
-
-    fun toggleProductRowVisibility(id: String) {
-        _products.update { current ->
-            current.map { if (it.id == id) it.copy(isRowHidden = !it.isRowHidden) else it }
-        }
-    }
-
-    fun toggleProductBuyVisibility(id: String) {
-        _products.update { current ->
-            current.map { if (it.id == id) it.copy(isBuyHidden = !it.isBuyHidden) else it }
-        }
-    }
-
-    fun toggleProductSellVisibility(id: String) {
-        _products.update { current ->
-            current.map { if (it.id == id) it.copy(isSellHidden = !it.isSellHidden) else it }
-        }
-    }
-
-    fun moveProductUp(id: String) {
-        _products.update { current ->
-            val index = current.indexOfFirst { it.id == id }
-            if (index > 0) {
-                val newList = current.toMutableList()
-                val temp = newList[index - 1]
-                newList[index - 1] = newList[index]
-                newList[index] = temp
-                newList
-            } else {
-                current
-            }
-        }
-    }
-
-    fun moveProductDown(id: String) {
-        _products.update { current ->
-            val index = current.indexOfFirst { it.id == id }
-            if (index < current.size - 1) {
-                val newList = current.toMutableList()
-                val temp = newList[index + 1]
-                newList[index + 1] = newList[index]
-                newList[index] = temp
-                newList
-            } else {
-                current
-            }
-        }
     }
 
     private fun maxOfNullable(vararg values: Double?): Double? {

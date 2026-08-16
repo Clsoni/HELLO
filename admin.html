@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swastik Gold - Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        .admin-section {
+            background: var(--card-bg);
+            margin: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            color: #333;
+        }
+        .admin-section h2 { color: var(--navy); margin-top: 0; }
+        .product-edit-row {
+            display: flex;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .product-edit-row label {
+            flex: 1;
+            font-weight: bold;
+        }
+        .product-edit-row input {
+            flex: 2;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .save-btn {
+            background: var(--navy);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">卐 SWASTIK GOLD</div>
+    <div class="nav">
+        <a href="index.html"><span class="icon material-icons">show_chart</span>Live Rates</a>
+        <a href="bank.html"><span class="icon material-icons">account_balance</span>Bank</a>
+        <a href="messages.html"><span class="icon material-icons">message</span>Messages</a>
+        <a href="about.html"><span class="icon material-icons">info</span>About</a>
+        <a href="admin.html" class="active"><span class="icon material-icons">admin_panel_settings</span>Admin</a>
+    </div>
+
+    <div class="admin-section">
+        <h2>Product Name Aliases</h2>
+        <p>Edit the display names for the physical products and futures from the API. Clear the box to use original names.</p>
+        <div id="product-list">Loading products from API...</div>
+        <br>
+        <button class="save-btn" onclick="saveAliases()">Save Changes</button>
+        <span id="save-status" style="margin-left:10px; color: green; font-weight: bold;"></span>
+    </div>
+
+    <script>
+        let config = { aliases: {} };
+        let apiProducts = [];
+
+        async function initAdmin() {
+            try {
+                let cfgRes = await fetch('api/get_config.php');
+                if(cfgRes.ok) config = await cfgRes.json();
+                if(!config.aliases) config.aliases = {};
+
+                let url = "https://bcast.sundhagold.com:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/sundhagold?_=" + Date.now();
+                let res = await fetch(url);
+                let text = await res.text();
+                
+                let lines = text.split(/\r?\n/);
+                apiProducts = [];
+                lines.forEach(line => {
+                    if (line.trim() === '') return;
+                    let parts = line.split('\t');
+                    if (parts.length >= 7) {
+                        let originalName = parts[2].trim();
+                        let nameUpper = originalName.toUpperCase();
+                        if (nameUpper !== 'SILVER' && nameUpper !== 'GOLD' && nameUpper !== 'USDINR') {
+                            apiProducts.push(originalName);
+                        }
+                    }
+                });
+                
+                renderProductEditors();
+            } catch (e) {
+                document.getElementById('product-list').innerText = "Failed to load products. " + e.message;
+            }
+        }
+
+        function renderProductEditors() {
+            let html = '';
+            apiProducts.forEach(prod => {
+                let currentVal = config.aliases[prod] || '';
+                html += `
+                    <div class="product-edit-row">
+                        <label>${prod}</label>
+                        <input type="text" id="alias-${btoa(prod).replace(/=/g,'')}" value="${currentVal}" placeholder="Custom Display Name (Optional)">
+                    </div>
+                `;
+            });
+            document.getElementById('product-list').innerHTML = html;
+        }
+
+        async function saveAliases() {
+            let newAliases = {};
+            apiProducts.forEach(prod => {
+                let id = 'alias-' + btoa(prod).replace(/=/g,'');
+                let el = document.getElementById(id);
+                if (el && el.value.trim() !== '') {
+                    newAliases[prod] = el.value.trim();
+                }
+            });
+            
+            config.aliases = newAliases;
+            
+            try {
+                let res = await fetch('api/save_config.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                if (res.ok) {
+                    let st = document.getElementById('save-status');
+                    st.innerText = "Saved Successfully!";
+                    setTimeout(() => st.innerText = '', 3000);
+                }
+            } catch (e) {
+                alert("Error saving: " + e.message);
+            }
+        }
+
+        window.onload = initAdmin;
+    </script>
+</body>
+</html>

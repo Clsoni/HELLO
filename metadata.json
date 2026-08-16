@@ -1,0 +1,6 @@
+{
+  "name": "Swastik Gold",
+  "description": "Real-Time Bullion Platform",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

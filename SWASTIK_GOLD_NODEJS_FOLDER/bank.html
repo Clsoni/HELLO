@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swastik Gold - Bank Details</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+    <div class="header">卐 SWASTIK GOLD</div>
+    <div class="nav">
+        <a href="index.html"><span class="icon material-icons">show_chart</span>Live Rates</a>
+        <a href="bank.html" class="active"><span class="icon material-icons">account_balance</span>Bank</a>
+        <a href="messages.html"><span class="icon material-icons">message</span>Messages</a>
+        <a href="about.html"><span class="icon material-icons">info</span>About</a>
+        <a href="admin.html"><span class="icon material-icons">admin_panel_settings</span>Admin</a>
+    </div>
+
+    <div id="bank-container">
+        <div class="admin-card">Loading banks...</div>
+    </div>
+
+    <script>
+        async function loadBanks() {
+            try {
+                let res = await fetch('api/get_config.php');
+                if (res.ok) {
+                    let config = await res.json();
+                    let banks = config.banks || [];
+                    let html = '';
+                    if (banks.length === 0) {
+                        html = '<div class="admin-card"><p>No bank details available.</p></div>';
+                    } else {
+                        banks.forEach(b => {
+                            html += `
+                                <div class="admin-card">
+                                    <h3>${b.name}</h3>
+                                    <p><strong>Account No:</strong> ${b.account}</p>
+                                    <p><strong>IFSC Code:</strong> ${b.ifsc}</p>
+                                    <p><strong>Branch:</strong> ${b.branch}</p>
+                                </div>
+                            `;
+                        });
+                    }
+                    document.getElementById('bank-container').innerHTML = html;
+                }
+            } catch (e) {
+                document.getElementById('bank-container').innerHTML = '<div class="admin-card"><p>Failed to load banks.</p></div>';
+            }
+        }
+        window.onload = loadBanks;
+    </script>
+</body>
+</html>

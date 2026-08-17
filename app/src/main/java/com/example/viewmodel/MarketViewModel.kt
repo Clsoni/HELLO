@@ -168,7 +168,7 @@ class MarketViewModel : ViewModel() {
                 if (!_isFrozen.value) {
                     try {
                         val request = Request.Builder()
-                            .url("https://bcast.sundhagold.com:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/sundhagold?_=${System.currentTimeMillis()}")
+                            .url("https://mygoldking.net/api/live-rates?_=${System.currentTimeMillis()}")
                             .build()
                         
                         val response = httpClient.newCall(request).execute()

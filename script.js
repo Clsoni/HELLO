@@ -146,12 +146,15 @@ function renderTable(data, tableId, buyKey, sellKey) {
     });
 }
 
-async function fetchMarketData() {
+// Socket.IO logic replaces manual fetchMarketData
+const socket = io();
+
+socket.on('connect', () => {
+    console.log("Connected to Swastik Gold Live Server");
+});
+
+socket.on('market-data', (text) => {
     try {
-        let url = "/api/live-rates?_=" + Date.now();
-        let res = await fetch(url);
-        let text = await res.text();
-        
         parseResponse(text);
         
         let spotSilverEl = document.getElementById('spot-silver');
@@ -165,17 +168,14 @@ async function fetchMarketData() {
         
         renderTable(products, 'products-table', 'buy', 'sell');
         renderTable(quotes, 'quotes-table', 'bid', 'ask');
-        
     } catch (e) {
-        console.error("Failed to fetch market data", e);
+        console.error("Error processing market data:", e);
     }
-}
+});
 
 window.onload = () => {
     fetchConfig().then(() => {
         if(config.popup) alert(config.popup); // Simple popup for the web
-        fetchMarketData(); 
-        setInterval(fetchMarketData, 1000); 
         setInterval(fetchConfig, 5000); 
     });
 };

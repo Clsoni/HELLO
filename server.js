@@ -1,7 +1,15 @@
 const express = require('express');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { Server } = require('socket.io');
+const axios = require('axios');
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -21,7 +29,6 @@ if (!fs.existsSync(CONFIG_FILE)) {
 }
 
 // API endpoint to GET configuration
-// Supporting both the clean route and the old .php route just in case
 app.get(['/api/get_config', '/api/get_config.php'], (req, res) => {
     fs.readFile(CONFIG_FILE, 'utf8', (err, data) => {
         if (err) {
@@ -46,21 +53,35 @@ app.post(['/api/save_config', '/api/save_config.php'], (req, res) => {
     });
 });
 
-// Proxy endpoint to hide Sundha Gold API from the frontend
-app.get('/api/live-rates', async (req, res) => {
+// --- Socket.IO Polling Logic ---
+let latestMarketData = "";
+
+async function fetchSundhaGold() {
     try {
         const url = "https://bcast.sundhagold.com:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/sundhagold?_=" + Date.now();
-        const response = await fetch(url);
-        const text = await response.text();
-        res.send(text);
-    } catch (e) {
-        console.error("Proxy error:", e);
-        res.status(500).send("");
+        const response = await axios.get(url);
+        latestMarketData = response.data;
+        io.emit('market-data', latestMarketData);
+    } catch (error) {
+        console.error("Error fetching Sundha Gold:", error.message);
+    }
+}
+
+setInterval(fetchSundhaGold, 1000);
+
+io.on('connection', (socket) => {
+    if (latestMarketData) {
+        socket.emit('market-data', latestMarketData);
     }
 });
 
-// Start the server (GoDaddy will inject the port via process.env.PORT)
+// Proxy endpoint for Android App
+app.get('/api/live-rates', (req, res) => {
+    res.send(latestMarketData);
+});
+
+// Start the server
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Swastik Gold Server is running on port ${PORT}`);
 });

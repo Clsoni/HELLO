@@ -46,6 +46,19 @@ app.post(['/api/save_config', '/api/save_config.php'], (req, res) => {
     });
 });
 
+// Proxy endpoint to hide Sundha Gold API from the frontend
+app.get('/api/live-rates', async (req, res) => {
+    try {
+        const url = "https://bcast.sundhagold.com:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/sundhagold?_=" + Date.now();
+        const response = await fetch(url);
+        const text = await response.text();
+        res.send(text);
+    } catch (e) {
+        console.error("Proxy error:", e);
+        res.status(500).send("");
+    }
+});
+
 // Start the server (GoDaddy will inject the port via process.env.PORT)
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

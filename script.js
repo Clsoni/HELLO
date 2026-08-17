@@ -11,13 +11,19 @@ let config = { products: {}, marquee: "", popup: "", banks: [] };
 
 function flash(element, nextValue, key) {
     if (element.innerText !== String(nextValue)) {
-        if (previousValues[key] !== undefined && nextValue !== '-') {
+        if (element.flashTimeout) clearTimeout(element.flashTimeout);
+        
+        if (previousValues[key] !== undefined && nextValue !== '-' && previousValues[key] !== '-') {
             let isUp = Number(nextValue) > Number(previousValues[key]);
             element.className = 'price-box ' + (isUp ? 'flash-up' : 'flash-down');
-            setTimeout(() => {
+            
+            element.flashTimeout = setTimeout(() => {
                 element.className = 'price-box';
             }, 500);
+        } else {
+            element.className = 'price-box';
         }
+        
         element.innerText = nextValue;
         previousValues[key] = nextValue;
     }
@@ -119,10 +125,15 @@ function renderTable(data, tableId, buyKey, sellKey) {
         const high = item.buyHigh || item.high;
         const low = item.buyLow || item.low;
         
-        let buyStr = (buy === 0 || isNaN(buy) || item.hideBuy) ? '-' : buy.toFixed(0);
-        let sellStr = (sell === 0 || isNaN(sell) || item.hideSell) ? '-' : sell.toFixed(0);
-        let highStr = (high === 0 || isNaN(high)) ? '-' : high.toFixed(0);
-        let lowStr = (low === 0 || isNaN(low)) ? '-' : low.toFixed(0);
+        let decimals = 0;
+        let itemName = (item.name || item.symbol || "").toUpperCase();
+        if (itemName.includes("USDINR")) decimals = 3;
+        else if (itemName.includes("COMEX") || itemName === "GOLD" || itemName === "SILVER") decimals = 2;
+        
+        let buyStr = (buy === 0 || isNaN(buy) || item.hideBuy) ? '-' : buy.toFixed(decimals);
+        let sellStr = (sell === 0 || isNaN(sell) || item.hideSell) ? '-' : sell.toFixed(decimals);
+        let highStr = (high === 0 || isNaN(high)) ? '-' : high.toFixed(decimals);
+        let lowStr = (low === 0 || isNaN(low)) ? '-' : low.toFixed(decimals);
 
         let hlEl = document.getElementById(`${item.original}-hl`);
         if (hlEl) hlEl.innerHTML = `H: ${highStr} &nbsp; L: ${lowStr}`;
@@ -137,20 +148,20 @@ function renderTable(data, tableId, buyKey, sellKey) {
 
 async function fetchMarketData() {
     try {
-        let url = "https://bcast.sundhagold.com:7768/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/sundhagold?_=" + Date.now();
+        let url = "/api/live-rates?_=" + Date.now();
         let res = await fetch(url);
         let text = await res.text();
         
         parseResponse(text);
         
         let spotSilverEl = document.getElementById('spot-silver');
-        if (spotSilverEl) flash(spotSilverEl, silverSpot, 'spot-silver');
+        if (spotSilverEl) flash(spotSilverEl, silverSpot === 0 ? '-' : silverSpot.toFixed(2), 'spot-silver');
         
         let spotGoldEl = document.getElementById('spot-gold');
-        if (spotGoldEl) flash(spotGoldEl, goldSpot, 'spot-gold');
+        if (spotGoldEl) flash(spotGoldEl, goldSpot === 0 ? '-' : goldSpot.toFixed(2), 'spot-gold');
         
         let spotUsdEl = document.getElementById('spot-usd');
-        if (spotUsdEl) flash(spotUsdEl, usdinrSpot, 'spot-usd');
+        if (spotUsdEl) flash(spotUsdEl, usdinrSpot === 0 ? '-' : usdinrSpot.toFixed(3), 'spot-usd');
         
         renderTable(products, 'products-table', 'buy', 'sell');
         renderTable(quotes, 'quotes-table', 'bid', 'ask');

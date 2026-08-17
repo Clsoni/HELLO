@@ -145,81 +145,78 @@ fun PortraitLiveRates(viewModel: MarketViewModel) {
 
 @Composable
 fun SpotPriceItem(label: String, price: Double) {
+    val decimals = if (label.equals("USDINR", ignoreCase = true)) 3 else 2
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(String.format("%.2f", price), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        FlashingPriceText(
+            price = price,
+            decimals = decimals,
+            restingTextColor = Color.White
+        )
     }
 }
 
 @Composable
-fun ColoredPriceBox(
+fun FlashingPriceText(
     price: Double?,
     modifier: Modifier = Modifier,
     isHidden: Boolean = false,
-    initialColor: Color
+    decimals: Int = 0,
+    restingTextColor: Color = Color.Black
 ) {
     var previousPrice by remember { mutableStateOf(price) }
-    var bgColor by remember { mutableStateOf(initialColor) }
+    var bgColor by remember { mutableStateOf(Color.Transparent) }
+    var textColor by remember { mutableStateOf(restingTextColor) }
     
     LaunchedEffect(price) {
         if (price != null && previousPrice != null && price != previousPrice) {
-            if (price > previousPrice!!) {
-                bgColor = BoxGreen
-            } else if (price < previousPrice!!) {
-                bgColor = BoxRed
-            }
+            bgColor = if (price > previousPrice!!) BoxGreen else BoxRed
+            textColor = Color.White
+            kotlinx.coroutines.delay(500)
+            bgColor = Color.Transparent
+            textColor = restingTextColor
         }
         previousPrice = price
     }
     
     Box(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         if (!isHidden && price != null) {
+            val priceStr = if (decimals > 0) String.format("%.${decimals}f", price) else price.toInt().toString()
             Text(
-                text = price.toInt().toString(),
+                text = priceStr,
                 modifier = Modifier
                     .background(bgColor, RoundedCornerShape(4.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                color = Color.White
+                color = textColor
             )
         }
     }
 }
 
-@Composable
-fun PlainPriceText(
-    price: Double?,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        if (price != null) {
-            Text(
-                text = price.toInt().toString(),
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = Color.Black
-            )
-        }
-    }
+fun getDecimals(name: String): Int {
+    if (name.contains("USDINR", ignoreCase = true)) return 3
+    if (name.contains("COMEX", ignoreCase = true)) return 2
+    if (name.equals("GOLD", ignoreCase = true) || name.equals("SILVER", ignoreCase = true)) return 2
+    return 0
+}
+
+fun formatPrice(price: Double?, decimals: Int): String {
+    if (price == null) return "-"
+    return if (decimals > 0) String.format("%.${decimals}f", price) else price.toInt().toString()
 }
 
 @Composable
 fun ProductCard(product: Product, alias: String? = null) {
-    // Determine mock colors to perfectly match screenshot
-    val buyColor = if (product.name.contains("SILVER CHORSA") || product.name.contains("KACHHI")) BoxRed else BoxGreen
-    val sellColor = if (product.name.contains("SILVER CHORSA")) BoxRed else BoxGreen
     val displayName = alias ?: product.name
-
+    val decimals = getDecimals(product.name)
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -234,23 +231,23 @@ fun ProductCard(product: Product, alias: String? = null) {
                 Text(displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 if (product.buyHigh != null) {
                     Row {
-                        Text("H: ${product.buyHigh?.toInt() ?: "-"}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("H: ${formatPrice(product.buyHigh, decimals)}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("L: ${product.buyLow?.toInt() ?: "-"}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("L: ${formatPrice(product.buyLow, decimals)}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-            ColoredPriceBox(
+            FlashingPriceText(
                 price = if (product.buy != null) product.buy + product.buyPremium else null,
                 modifier = Modifier.weight(1f),
                 isHidden = product.isBuyHidden,
-                initialColor = buyColor
+                decimals = decimals
             )
-            ColoredPriceBox(
+            FlashingPriceText(
                 price = if (product.sell != null) product.sell + product.sellPremium else null,
                 modifier = Modifier.weight(1f),
                 isHidden = product.isSellHidden,
-                initialColor = sellColor
+                decimals = decimals
             )
         }
     }
@@ -259,6 +256,8 @@ fun ProductCard(product: Product, alias: String? = null) {
 @Composable
 fun QuoteCard(quote: MarketQuote, alias: String? = null) {
     val displayName = alias ?: quote.symbol
+    val decimals = getDecimals(quote.symbol)
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -273,19 +272,21 @@ fun QuoteCard(quote: MarketQuote, alias: String? = null) {
                 Text(displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
                 if (quote.high != null) {
                     Row {
-                        Text("H: ${quote.high?.toInt() ?: "-"}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("H: ${formatPrice(quote.high, decimals)}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("L: ${quote.low?.toInt() ?: "-"}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("L: ${formatPrice(quote.low, decimals)}", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-            PlainPriceText(
+            FlashingPriceText(
                 price = quote.bid,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                decimals = decimals
             )
-            PlainPriceText(
+            FlashingPriceText(
                 price = quote.ask,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                decimals = decimals
             )
         }
     }

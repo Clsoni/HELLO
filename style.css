@@ -122,12 +122,18 @@ body {
     border-radius: 4px;
     font-weight: bold;
     font-size: 16px;
-    color: var(--antique-dark);
-    transition: background-color 0.3s;
+    color: black;
+    background-color: transparent;
 }
 
-.flash-up { background-color: rgba(76, 175, 80, 0.5); }
-.flash-down { background-color: rgba(229, 57, 53, 0.5); }
+.flash-up {
+    background-color: #4CAF50 !important;
+    color: white !important;
+}
+.flash-down {
+    background-color: #E53935 !important;
+    color: white !important;
+}
 
 .admin-card {
     background: white;

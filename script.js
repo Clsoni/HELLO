@@ -11,8 +11,8 @@ let config = { products: {}, marquee: "", popup: "", banks: [] };
 
 function flash(element, nextValue, key) {
     if (element.innerText !== String(nextValue)) {
-        if (previousValues[key] !== undefined) {
-            let isUp = nextValue > previousValues[key];
+        if (previousValues[key] !== undefined && nextValue !== '-') {
+            let isUp = Number(nextValue) > Number(previousValues[key]);
             element.className = 'price-box ' + (isUp ? 'flash-up' : 'flash-down');
             setTimeout(() => {
                 element.className = 'price-box';
@@ -83,9 +83,37 @@ function renderTable(data, tableId, buyKey, sellKey) {
     const tbody = document.getElementById(tableId);
     if (!tbody) return;
     
-    tbody.innerHTML = '';
+    let needsFullRender = false;
+    if (tbody.children.length !== data.length) {
+        needsFullRender = true;
+    } else {
+        for (let i = 0; i < data.length; i++) {
+            if (tbody.children[i].dataset.original !== data[i].original) {
+                needsFullRender = true;
+                break;
+            }
+        }
+    }
+
+    if (needsFullRender) {
+        tbody.innerHTML = '';
+        data.forEach(item => {
+            const name = item.name || item.symbol;
+            let tr = document.createElement('tr');
+            tr.dataset.original = item.original;
+            tr.innerHTML = `
+                <td>
+                    ${name}
+                    <span class="high-low" id="${item.original}-hl"></span>
+                </td>
+                <td><div class="price-box" id="${item.original}-buy"></div></td>
+                <td><div class="price-box" id="${item.original}-sell"></div></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
     data.forEach(item => {
-        const name = item.name || item.symbol;
         const buy = item[buyKey];
         const sell = item[sellKey];
         const high = item.buyHigh || item.high;
@@ -96,16 +124,14 @@ function renderTable(data, tableId, buyKey, sellKey) {
         let highStr = (high === 0 || isNaN(high)) ? '-' : high.toFixed(0);
         let lowStr = (low === 0 || isNaN(low)) ? '-' : low.toFixed(0);
 
-        tbody.innerHTML += `
-            <tr>
-                <td>
-                    ${name}
-                    <span class="high-low">H: ${highStr} &nbsp; L: ${lowStr}</span>
-                </td>
-                <td><div class="price-box" id="${item.original}-buy">${buyStr}</div></td>
-                <td><div class="price-box" id="${item.original}-sell">${sellStr}</div></td>
-            </tr>
-        `;
+        let hlEl = document.getElementById(`${item.original}-hl`);
+        if (hlEl) hlEl.innerHTML = `H: ${highStr} &nbsp; L: ${lowStr}`;
+        
+        let buyEl = document.getElementById(`${item.original}-buy`);
+        if (buyEl) flash(buyEl, buyStr, `${item.original}-buy`);
+        
+        let sellEl = document.getElementById(`${item.original}-sell`);
+        if (sellEl) flash(sellEl, sellStr, `${item.original}-sell`);
     });
 }
 
